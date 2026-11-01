@@ -24,7 +24,7 @@ In the **final combined subscription**, add this as its last **节点操作 → 
 - It routes VLESS, SSR, or explicitly `_mihomoExternal` / `_surgeBridge` tagged nodes through Bridge; native Surge-compatible protocols remain unchanged.
 - Existing Surge proxy names are retained, including native nodes.
 - A stable **single SOCKS port per combined output** is derived from the combination name. To override it, provide script argument `port=xxxxx`. There is **no localPort to configure per source subscription or per node**.
-- Optional script arguments: `exec=/absolute/path/surge-bridge`, `port`, `controllerPort`, `secret`, `udp=false` (TCP-only dry run).
+- Optional script arguments: `exec=/absolute/path/surge-bridge`, `port`, `controllerPort`, `secret` (recommended for a stable Yacd API token), `udp=false` (TCP-only dry run), `externalBootstrap=true` (optional legacy launcher mode).
 
 ⚠️ If multiple independent `policy-path` resources each run this script, each produces its own engine and port. Hash-derived ports have a low but **non-zero collision possibility** and do not merge multiple resource files into one process. The one-process setup assumes your **combined subscription** is the sole Bridge source.
 
@@ -51,7 +51,7 @@ The installer sets up `~/Library/LaunchAgents/dev.surgebridge.engine.plist` (Run
 4. Reloads changed configs every five minutes or on SIGHUP; if fetching or validation fails, retains the current configuration and on a cold restart tries the last-good cache.
 5. Is independently restarted by `launchd` if it exits.
 
-**Important:** The Engine External entry in Surge still exists to carry the encoded config, but should **not** be selected when the separate LaunchAgent is running. Surge only needs the individual SOCKS5 nodes. Selecting the Engine entry would cause Surge to try to launch a second binary for the same local port; this interaction still needs dedicated integration testing and a better single-instance handshake.
+**Important:** In the default single-port mode, the Sub-Store script puts the internal config in a dedicated `# surge-bridge engine=external,...` **comment**, which Surge ignores. There is no extra selectable Engine policy in Surge. The standalone LaunchAgent reads this comment from the same subscription URL. Only if you explicitly set the experimental `externalBootstrap=true` script argument will an ordinary visible External policy appear; in that compatibility mode the binary checks for an existing authenticated daemon before trying to start a second core.
 
 Check service status:
 
