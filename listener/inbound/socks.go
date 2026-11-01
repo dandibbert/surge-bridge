@@ -37,6 +37,9 @@ type Socks struct {
 }
 
 func NewSocks(options *SocksOption) (*Socks, error) {
+	if options.BridgeUDPSessions && len(options.Users) == 0 {
+		return nil, errors.New("bridge-udp-sessions requires explicit SOCKS5 users")
+	}
 	base, err := NewBase(&options.BaseOption)
 	if err != nil {
 		return nil, err
@@ -104,7 +107,7 @@ func (s *Socks) Listen(tunnel C.Tunnel) error {
 			return err
 		}
 		s.stl = append(s.stl, stl)
-		if s.udp {
+		if s.udp && !s.config.BridgeUDPSessions {
 			sul, err := socks.NewUDPWithConfig(config, lc, tunnel, s.Additions()...)
 			if err != nil {
 				return err
