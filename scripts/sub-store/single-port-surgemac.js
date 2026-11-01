@@ -88,7 +88,10 @@ function operator(proxies, targetPlatform, context) {
     // On a loopback listener, this is a stable local auth token. It is NOT
     // intended as a remotely exposed access credential.
     const password = md5("surge-bridge-local:" + JSON.stringify(original));
-    const outbound = "sb-out-" + id;
+    // Preserve the human-readable node name inside Yacd/Zashboard too.
+    // Strip commas/newlines because Mihomo rule targets are comma-delimited.
+    const label = String(original.name || "Unnamed").replace(/[,\r\n]/g, " ").slice(0, 80);
+    const outbound = label + " [SB:" + id.slice(0, 8) + "]";
     const internal = converted[0];
     // Guard accidental overrides and keep the original provider name in Surge.
     internal.name = outbound;
