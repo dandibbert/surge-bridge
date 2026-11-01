@@ -44,7 +44,7 @@ test('one SOCKS port and one listener, native nodes untouched', () => {
   assert.equal(out.length, 4);
   const socks = out.filter(p => p.type === 'socks5');
   assert.equal(socks.length, 2);
-  assert.deepEqual(socks.map(p => p.name), ['Hong Kong','Tokyo']);
+  assert.deepEqual(Array.from(socks, p => p.name), ['Hong Kong','Tokyo']);
   assert.equal(new Set(socks.map(p => p.port)).size, 1);
   assert.equal(out[1], input[1]);
   const config = parseExternal(out);
