@@ -32,7 +32,8 @@ function apply(proxies, platform = 'SurgeMac', args = {}) {
 }
 function parseExternal(out) {
   const ext = out.find(p => p.type === 'external');
-  assert.ok(ext, 'one bootstrap External entry is required');
+  assert.ok(ext, 'a single engine metadata carrier is required');
+  assert.ok(ext.name.startsWith('# surge-bridge engine'), 'engine should be hidden from Surge policy list');
   assert.equal(ext.args[0], '-config');
   return JSON.parse(Buffer.from(ext.args[1], 'base64').toString());
 }
@@ -85,6 +86,11 @@ test('skip other platforms and untouched native-only subscriptions', () => {
   assert.equal(apply(input, 'Surge'), input);
   const native = [input[1]];
   assert.equal(apply(native).length, 1);
+});
+test('visible External bootstrap only when explicitly requested', () => {
+  const out = apply(sample(),'SurgeMac',{externalBootstrap:true});
+  assert.equal(out.filter(p=>p.type==='external').length,1);
+  assert.equal(out.find(p=>p.type==='external').name,'surge-bridge engine');
 });
 test('invalid port and duplicate identity fail closed', () => {
   assert.throws(() => apply(sample(),'SurgeMac',{port: 99999}),/port/);
