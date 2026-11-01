@@ -22,6 +22,11 @@ func TestExtractEngineConfig(t *testing.T) {
 	text, err := ExtractEngineConfig([]byte(sampleSurgeMac(expected)))
 	if err != nil { t.Fatal(err) }
 	if string(text) != expected { t.Fatalf("got %s; want %s", text, expected) }
+	hidden := strings.Replace(sampleSurgeMac(expected), "surge-bridge engine=external", "# surge-bridge engine=external", 1)
+	config, err := ExtractEngineConfig([]byte(hidden))
+	if err != nil || string(config) != expected {
+		t.Fatalf("hidden comment metadata failed: %v, %s", err, config)
+	}
 	for _, test := range []struct{name, input string}{
 		{"no engine", "Other=socks5,127.0.0.1,12345"},
 		{"invalid base64", "x=external,exec=\"/opt/homebrew/bin/surge-bridge\",args=\"-config\",args=\"not--b64\""},
