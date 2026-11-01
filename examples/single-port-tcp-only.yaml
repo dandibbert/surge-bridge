@@ -1,0 +1,15 @@
+# Surge Bridge: shared TCP SOCKS5 port proof of concept.
+# WARNING: UDP per-user routing is NOT implemented yet.
+# Do not enable udp-relay=true in Surge for this experiment.
+mode: rule
+ipv6: false
+log-level: info
+bind-address: 127.0.0.1
+socks-port: 17890
+authentication:
+  - "node-direct:direct-pass"
+  - "node-reject:reject-pass"
+rules:
+  - IN-USER,node-direct,DIRECT
+  - IN-USER,node-reject,REJECT
+  - MATCH,REJECT
