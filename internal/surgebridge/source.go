@@ -36,7 +36,12 @@ func ExtractEngineConfig(content []byte) ([]byte, error) {
 	var found []byte
 	for _, rawLine := range bytes.Split(content, []byte("\n")) {
 		line := strings.TrimSpace(string(rawLine))
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+		// The default Sub-Store adapter emits the engine metadata as a
+		// comment so Surge policy-path lists do not display a fake selectable
+		// External policy. Only this explicit marker is parsed from comments.
+		if strings.HasPrefix(line, "# surge-bridge engine") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "#"))
+		} else if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
 			continue
 		}
 		_, policy, ok := strings.Cut(line, "=")
