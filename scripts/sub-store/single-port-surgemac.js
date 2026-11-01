@@ -36,6 +36,12 @@ function operator(proxies, targetPlatform, context) {
     throw new Error("Surge Bridge: exec must be an absolute path without quotes or newlines");
   }
   const enabledUDP = !(opts.udp === false || String(opts.udp).toLowerCase() === "false");
+  const controllerPort = opts.controllerPort == null || opts.controllerPort === ""
+    ? port + 1 : Number(opts.controllerPort);
+  if (!Number.isInteger(controllerPort) || controllerPort < 1024 ||
+      controllerPort > 65535 || controllerPort === port) {
+    throw new Error("Surge Bridge: controllerPort must differ from the SOCKS port");
+  }
 
   const output = [];
   const outbounds = [];
@@ -118,7 +124,16 @@ function operator(proxies, targetPlatform, context) {
       "https://doh-pure.onedns.net/dns-query"
     ]
   };
+  // The API is always loopback-only and requires a secret, including for
+  // dashboards. The optional script argument "secret" overrides the stable
+  // derived local secret. Never expose this API on a LAN address.
+  const apiSecret = String(opts.secret ||
+    md5("surge-bridge-api:" + JSON.stringify(
+      proxies.filter(shouldBridge).map(p => [p.uuid || "", p.password || "", p.server])
+    )));
   const cfg = {
+    "external-controller": "127.0.0.1:" + controllerPort,
+    secret: apiSecret,
     mode: "rule",
     ipv6: true,
     "log-level": "info",
