@@ -60,7 +60,7 @@ function operator(proxies, targetPlatform, context) {
     // ClashMeta producer that the built-in SurgeMac Mihomo conversion uses.
     const cloned = JSON.parse(JSON.stringify(original));
     const converted = ProxyUtils.produce(
-      [cloned], "ClashMeta", "internal", {"include-unsupported-proxy": true}
+      [cloned], "ClashMeta", "internal", {"include-unsupported-proxy": true, "delete-underscore-fields": true}
     );
     if (!Array.isArray(converted) || converted.length !== 1 || !converted[0]) {
       throw new Error("Surge Bridge: unable to convert " + original.name);
