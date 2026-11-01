@@ -109,7 +109,12 @@ function operator(proxies, targetPlatform, context) {
 
   if (outbounds.length === 0) return output;
 
-  let engineName = "surge-bridge engine";
+  // Default to a comment-only carrier: Surge ignores the line and shows
+  // only actual proxy nodes, while the standalone Bridge reads the embedded
+  // config from the same Sub-Store output. Optional externalBootstrap=true
+  // restores a visible Surge External entry for compatibility testing.
+  let engineName = opts.externalBootstrap === true
+    ? "surge-bridge engine" : "# surge-bridge engine";
   if (names.has(engineName)) engineName += " [" + md5(source).slice(0, 6) + "]";
   const first = proxies.find(shouldBridge) || {};
   const dns = {
