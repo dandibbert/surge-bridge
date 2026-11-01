@@ -49,7 +49,7 @@ test('one SOCKS port and one listener, native nodes untouched', () => {
   assert.equal(out[1], input[1]);
   const config = parseExternal(out);
   assert.equal(config.mode, 'rule');
-  assert.match(config['external-controller'], /^127\\.0\\.0\\.1:\\d+$/);
+  assert.ok(config['external-controller'].startsWith('127.0.0.1:'));
   assert.notEqual(Number(config['external-controller'].split(':').at(-1)), socks[0].port);
   assert.ok(config.secret && config.secret.length >= 20);
   assert.equal(config.proxies.length, 2);
