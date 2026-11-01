@@ -75,7 +75,10 @@ The script puts `external-controller: 127.0.0.1:<controllerPort>` and a secret i
 CONFIG="$HOME/Library/Application Support/SurgeBridge/last-good-config.json"
 API=$(jq -r '."external-controller"' "$CONFIG")
 TOKEN=$(jq -r '.secret' "$CONFIG")
-curl -fsSG "http://$API/surge-bridge/proxies/NODE_ID/test" \
+# Internal labels include the readable name and [SB:xxxxxxxx] suffix.
+# jq @uri safely encodes spaces and non-ASCII characters in the API path.
+NODE_ID=$(jq -r '.proxies[0].name | @uri' "$CONFIG")
+curl -fsSG "http://$API/surge-bridge/proxies/$NODE_ID/test" \
   -H "Authorization: Bearer $TOKEN" \
   --data-urlencode "timeout=8000"
 ```
