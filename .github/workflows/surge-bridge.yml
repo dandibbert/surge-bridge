@@ -8,6 +8,8 @@ on:
       - 'hub/route/surge_bridge*'
       - 'hub/route/server.go'
       - 'hub/route/proxies.go'
+      - 'listener/**'
+      - 'transport/socks5/**'
       - '.github/workflows/surge-bridge.yml'
       - 'main.go'
       - 'go.mod'
@@ -26,6 +28,8 @@ jobs:
           cache: true
       - name: Diagnostic endpoint tests
         run: go test ./hub/route -run '^TestBridge' -count=1
+      - name: Isolated SOCKS5 transport tests
+        run: go test ./listener/socks ./listener/inbound ./transport/socks5 -count=1
       - name: Build macOS Apple Silicon binary
         run: |
           mkdir -p dist
