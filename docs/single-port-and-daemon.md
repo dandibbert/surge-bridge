@@ -80,7 +80,7 @@ curl -fsSG "http://$API/surge-bridge/proxies/NODE_ID/test" \
   --data-urlencode "timeout=8000"
 ```
 
-`NODE_ID` is the internal outbound name (prefixed `sb-out-`), **not** the original Surge display name; use the `proxies` list in the cached config to find it. A future menu-bar panel will resolve these names automatically.
+`NODE_ID` is the internal outbound name (the Surge display name plus a unique `[SB:xxxxxxxx]` suffix); use the `proxies` list in the cached config to find it. A future menu-bar panel will resolve these names automatically.
 
 Mihomo's default `/proxies/{name}/delay` now also retains the underlying error instead of the generic Yacd 503 message. The diagnostic API is still best-effort categorization, **not** an instrumented transcript of every DNS, TCP, TLS, and REALITY handshake stage.
 
