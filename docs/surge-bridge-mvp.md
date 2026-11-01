@@ -22,7 +22,7 @@
 
 1. 从 GitHub Actions 下载 `surge-bridge-darwin-arm64`（或使用 Go 编译），放在 `/opt/homebrew/bin/surge-bridge` 并赋予执行权限。
 2. 在 Sub-Store **组合订阅 → 节点操作 → 脚本操作** 添加 [compat-surgemac.js](../scripts/sub-store/compat-surgemac.js)，放在需要应用的节点筛选操作之后。
-3. 保持原有 `target=SurgeMac`、`policy-path` 及其他 Surge 规则不变。现阶段不要对聚合订阅额外启用“共用一个 SOCKS5 端口”脚本。
+3. 保持原有 `target=SurgeMac`、`policy-path` 及其他 Surge 规则不变。适配脚本会清除节点级 `_localPort`，在**单个组合订阅输出**中由 Sub-Store 自动连续分配端口，无需为每个来源记住起始端口。**多个独立 SurgeMac 输出仍可能端口冲突**；现阶段不要启用“所有节点共用一个 SOCKS5 端口”的实验脚本。
 4. 先用少量节点测试，确认聚合 External 项启动，原节点仍可用，再增加节点数量。
 
 ### 单独测试节点并查看原始错误
