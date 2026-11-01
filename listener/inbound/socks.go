@@ -15,6 +15,7 @@ type SocksOption struct {
 	BaseOption
 	Users          AuthUsers     `inbound:"users,omitempty"`
 	UDP            bool          `inbound:"udp,omitempty"`
+	BridgeUDPSessions bool `inbound:"bridge-udp-sessions,omitempty"`
 	Certificate    string        `inbound:"certificate,omitempty"`
 	PrivateKey     string        `inbound:"private-key,omitempty"`
 	ClientAuthType string        `inbound:"client-auth-type,omitempty"`
@@ -88,6 +89,7 @@ func (s *Socks) Listen(tunnel C.Tunnel) error {
 	for _, addr := range strings.Split(s.RawAddress(), ",") {
 		config := LC.AuthServer{
 			Enable:         true,
+			BridgeUDPSessions: s.config.BridgeUDPSessions,
 			Listen:         addr,
 			AuthStore:      s.config.Users.GetAuthStore(),
 			Certificate:    s.config.Certificate,
