@@ -13,6 +13,8 @@ on:
       - 'scripts/sub-store/**'
       - 'internal/surgebridge/**'
       - 'bridge_lifecycle.go'
+      - 'scripts/install-launchd.sh'
+      - 'scripts/tests/**'
       - '.github/workflows/surge-bridge.yml'
       - 'main.go'
       - 'go.mod'
@@ -29,6 +31,8 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+      - name: LaunchAgent installer syntax and sandbox smoke test
+        run: sh -n scripts/install-launchd.sh && sh scripts/tests/install-launchd.test.sh
       - name: Sub-Store single-port script tests
         run: node --test scripts/sub-store/single-port-surgemac.test.cjs
       - name: Diagnostic endpoint tests
