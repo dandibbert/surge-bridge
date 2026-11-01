@@ -41,6 +41,12 @@ jobs:
         run: go test ./internal/surgebridge -count=1
       - name: Isolated SOCKS5 transport tests
         run: go test ./listener/socks ./listener/inbound ./transport/socks5 -count=1
+      - name: Build Linux e2e test binary
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/surge-bridge-linux-amd64 .
+      - name: Local TCP + UDP association integration
+        run: node --test scripts/tests/socks-udp-e2e.test.cjs
       - name: Build macOS Apple Silicon binary
         run: |
           mkdir -p dist
