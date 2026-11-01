@@ -134,10 +134,12 @@ func getProxyDelay(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil || delay == 0 {
 		render.Status(r, http.StatusServiceUnavailable)
-		if err != nil && delay != 0 {
-			render.JSON(w, r, err)
+		if err != nil {
+			// Preserve the failure reason even when URLTest returns delay=0.
+			// Keep the standard Mihomo JSON error shape for existing dashboards.
+			render.JSON(w, r, newError(bridgeSanitizeError(err)))
 		} else {
-			render.JSON(w, r, newError("An error occurred in the delay test"))
+			render.JSON(w, r, newError("The delay test returned no measurement"))
 		}
 		return
 	}

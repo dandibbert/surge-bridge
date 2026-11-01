@@ -141,14 +141,14 @@ func NewWithConfig(config LC.AuthServer, lc C.InboundListenConfig, tunnel C.Tunn
 					store = authStore.Nil
 				}
 			}
-			go handleSocks(c, tunnel, store, additions...)
+			go handleSocks(c, tunnel, store, config.BridgeUDPSessions, additions...)
 		}
 	}()
 
 	return sl, nil
 }
 
-func handleSocks(conn net.Conn, tunnel C.Tunnel, store auth.AuthStore, additions ...inbound.Addition) {
+func handleSocks(conn net.Conn, tunnel C.Tunnel, store auth.AuthStore, bridgeUDP bool, additions ...inbound.Addition) {
 	bufConn := N.NewBufferedConn(conn)
 	head, err := bufConn.Peek(1)
 	if err != nil {
@@ -160,7 +160,7 @@ func handleSocks(conn net.Conn, tunnel C.Tunnel, store auth.AuthStore, additions
 	case socks4.Version:
 		HandleSocks4(bufConn, tunnel, store, additions...)
 	case socks5.Version:
-		HandleSocks5(bufConn, tunnel, store, additions...)
+		HandleSocks5WithBridge(bufConn, tunnel, store, bridgeUDP, additions...)
 	default:
 		conn.Close()
 	}
@@ -178,13 +178,32 @@ func HandleSocks4(conn net.Conn, tunnel C.Tunnel, store auth.AuthStore, addition
 }
 
 func HandleSocks5(conn net.Conn, tunnel C.Tunnel, store auth.AuthStore, additions ...inbound.Addition) {
+	HandleSocks5WithBridge(conn, tunnel, store, false, additions...)
+}
+
+func HandleSocks5WithBridge(conn net.Conn, tunnel C.Tunnel, store auth.AuthStore, bridgeUDP bool, additions ...inbound.Addition) {
 	authenticator := store.Authenticator()
-	target, command, user, err := socks5.ServerHandshake(conn, authenticator)
+	var relay *bridgeUDPAssociation
+	var replyAddr func(command socks5.Command, user string, request socks5.Addr) (net.Addr, error)
+	if bridgeUDP {
+		replyAddr = func(command socks5.Command, user string, request socks5.Addr) (net.Addr, error) {
+			if command != socks5.CmdUDPAssociate {
+				return conn.LocalAddr(), nil
+			}
+			var err error
+			relay, err = newBridgeUDPAssociation(conn, request, tunnel, user, additions)
+			if err != nil { return nil, err }
+			return relay.LocalAddr(), nil
+		}
+	}
+	target, command, user, err := socks5.ServerHandshakeWithReply(conn, authenticator, replyAddr)
 	if err != nil {
+		if relay != nil { relay.Close() }
 		conn.Close()
 		return
 	}
 	if command == socks5.CmdUDPAssociate {
+		if relay != nil { defer relay.Close() }
 		defer conn.Close()
 		io.Copy(io.Discard, conn)
 		return

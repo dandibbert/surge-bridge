@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/metacubex/mihomo/common/cmd"
 	"github.com/metacubex/mihomo/component/age"
@@ -61,6 +62,10 @@ func init() {
 	flag.StringVar(&homeDir, "d", os.Getenv("CLASH_HOME_DIR"), "set configuration directory")
 	flag.StringVar(&configFile, "f", os.Getenv("CLASH_CONFIG_FILE"), "specify configuration file")
 	flag.StringVar(&configString, "config", os.Getenv("CLASH_CONFIG_STRING"), "specify base64-encoded configuration string")
+	flag.StringVar(&bridgeSourceURL, "bridge-source", "", "watch an existing Sub-Store SurgeMac subscription URL (read-only)")
+	flag.StringVar(&bridgeSourceFile, "bridge-source-file", "", "read the Sub-Store URL from a private local file")
+	flag.StringVar(&bridgeCacheFile, "bridge-cache", "", "last-known-good configuration file path")
+	flag.DurationVar(&bridgePoll, "bridge-poll", bridgePoll, "subscription refresh interval, minimum 30s")
 	flag.StringVar(&ageSecretKey, "age-secret-key", os.Getenv("CLASH_AGE_SECRET_KEY"), "specify age secret key to decrypt configuration")
 	flag.StringVar(&externalUI, "ext-ui", os.Getenv("CLASH_OVERRIDE_EXTERNAL_UI_DIR"), "override external ui directory")
 	flag.StringVar(&externalController, "ext-ctl", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER"), "override external controller address")
@@ -74,26 +79,34 @@ func init() {
 	flag.BoolVar(&geodataMode, "m", false, "set geodata mode")
 	flag.BoolVar(&version, "v", false, "show current version of mihomo")
 	flag.BoolVar(&testConfig, "t", false, "test configuration and exit")
-	flag.Parse()
 }
 
 func main() {
-	// Defensive programming: panic when code mistakenly calls net.DefaultResolver
-	net.DefaultResolver.PreferGo = true
-	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-		//panic("should never be called")
-		buf := make([]byte, 1024)
-		for {
-			n := runtime.Stack(buf, true)
-			if n < len(buf) {
-				buf = buf[:n]
-				break
+	// Parse in main rather than init so Go's testing package can register
+	// -test.* flags when this executable is tested as package main.
+	flag.Parse()
+	// A standalone subscription watcher must resolve the Sub-Store hostname
+	// BEFORE Mihomo DNS is initialized. Preserve the upstream resolver guard
+	// for normal -config/-f mode, but allow system DNS for the read-only watcher.
+	if !bridgeWatchEnabled() {
+		// Defensive programming: panic when code mistakenly calls net.DefaultResolver
+		net.DefaultResolver.PreferGo = true
+		net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+			//panic("should never be called")
+			buf := make([]byte, 1024)
+			for {
+				n := runtime.Stack(buf, true)
+				if n < len(buf) {
+					buf = buf[:n]
+					break
+				}
+				buf = make([]byte, 2*len(buf))
 			}
-			buf = make([]byte, 2*len(buf))
+			fmt.Fprintf(os.Stderr, "panic: should never be called\n\n%s", buf) // always print all goroutine stack
+			os.Exit(2)
+			return nil, nil
 		}
-		fmt.Fprintf(os.Stderr, "panic: should never be called\n\n%s", buf) // always print all goroutine stack
-		os.Exit(2)
-		return nil, nil
+	
 	}
 
 	_, _ = maxprocs.Set(maxprocs.Logger(func(string, ...any) {}))
@@ -114,7 +127,7 @@ func main() {
 	}
 
 	if version {
-		fmt.Printf("Mihomo Meta %s %s %s with %s %s\n",
+		fmt.Printf("Surge Bridge (Mihomo Meta %s) %s %s with %s %s\n",
 			C.Version, runtime.GOOS, runtime.GOARCH, runtime.Version(), C.BuildTime)
 		if tags := features.Tags(); len(tags) != 0 {
 			fmt.Printf("Use tags: %s\n", strings.Join(tags, ", "))
@@ -142,7 +155,16 @@ func main() {
 		age.SetGlobalSecretKeys(ageSecretKey)
 	}
 
-	if configString != "" {
+	if bridgeWatchEnabled() {
+		if configString != "" || configFile != "" {
+			log.Fatalln("Bridge subscription watch cannot be combined with -config or -f")
+		}
+		var err error
+		configBytes, err = bridgeLoadInitial()
+		if err != nil {
+			log.Fatalln("Bridge initial subscription error: %s", err)
+		}
+	} else if configString != "" {
 		var err error
 		configBytes, err = base64.StdEncoding.DecodeString(configString)
 		if err != nil {
@@ -190,6 +212,13 @@ func main() {
 		return
 	}
 
+	// A Surge External launcher must not bind the SOCKS and controller ports
+	// a second time when the independent launchd-managed core is healthy.
+	if configString != "" && !bridgeWatchEnabled() && bridgeHasRunningDaemon(configBytes) {
+		bridgeWaitForDaemonTermination()
+		return
+	}
+
 	var options []hub.Option
 	if externalUI != "" {
 		options = append(options, hub.WithExternalUI(externalUI))
@@ -216,6 +245,9 @@ func main() {
 	if err := hub.Parse(configBytes, options...); err != nil {
 		log.Fatalln("Parse config error: %s", err.Error())
 	}
+	if bridgeWatchEnabled() {
+		bridgeSaveLastGood(configBytes)
+	}
 
 	if updater.GeoAutoUpdate() {
 		updater.RegisterGeoUpdater()
@@ -240,12 +272,25 @@ func main() {
 	hupSign := make(chan os.Signal, 1)
 	signal.Notify(termSign, syscall.SIGINT, syscall.SIGTERM)
 	signal.Notify(hupSign, syscall.SIGHUP)
+	var refresh <-chan time.Time
+	if bridgeWatchEnabled() {
+		if bridgePoll < 30*time.Second {
+			log.Fatalln("-bridge-poll must be at least 30s")
+		}
+		ticker := time.NewTicker(bridgePoll)
+		defer ticker.Stop()
+		refresh = ticker.C
+	}
 	for {
 		select {
+		case <-refresh:
+			configBytes = bridgeRefreshIfChanged(configBytes, options)
 		case <-termSign:
 			return
 		case <-hupSign:
-			if err := hub.Parse(configBytes, options...); err != nil {
+			if bridgeWatchEnabled() {
+				configBytes = bridgeRefreshIfChanged(configBytes, options)
+			} else if err := hub.Parse(configBytes, options...); err != nil {
 				log.Errorln("Parse config error: %s", err.Error())
 			}
 		}

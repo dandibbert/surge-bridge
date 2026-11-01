@@ -107,6 +107,12 @@ type User struct {
 
 // ServerHandshake fast-tracks SOCKS initialization to get target address to connect on server side.
 func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, command Command, user string, err error) {
+	return ServerHandshakeWithReply(rw, authenticator, nil)
+}
+
+// ServerHandshakeWithReply allows an opt-in UDP ASSOCIATE handler to return
+// a session-specific UDP relay endpoint. Existing clients remain unchanged.
+func ServerHandshakeWithReply(rw net.Conn, authenticator auth.Authenticator, replyAddr func(command Command, user string, request Addr) (net.Addr, error)) (addr Addr, command Command, user string, err error) {
 	// Read RFC 1928 for request and reply structure and sizes.
 	buf := make([]byte, MaxAddrLen)
 	// read VER, NMETHODS, METHODS
@@ -193,7 +199,15 @@ func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, 
 	switch command {
 	case CmdConnect, CmdUDPAssociate:
 		// Acquire server listened address info
-		localAddr := ParseAddrToSocksAddr(rw.LocalAddr())
+		bindAddr := rw.LocalAddr()
+		if replyAddr != nil {
+			bindAddr, err = replyAddr(command, user, addr)
+			if err != nil {
+				_, _ = rw.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
+				return
+			}
+		}
+		localAddr := ParseAddrToSocksAddr(bindAddr)
 		if localAddr == nil {
 			err = ErrAddressNotSupported
 		} else {

@@ -8,6 +8,7 @@ import (
 // AuthServer for http/socks/mixed server
 type AuthServer struct {
 	Enable         bool
+	BridgeUDPSessions bool
 	Listen         string
 	AuthStore      auth.AuthStore
 	Certificate    string

@@ -1,0 +1,24 @@
+# Surge Bridge opt-in shared SOCKS5 port with per-user TCP and UDP routing.
+# This exercises the new isolated UDP ASSOCIATE relay. The UDP code still
+# requires live Surge tests before production use.
+mode: rule
+ipv6: false
+log-level: info
+
+listeners:
+  - name: surge-bridge
+    type: socks
+    listen: 127.0.0.1
+    port: 17890
+    udp: true
+    bridge-udp-sessions: true
+    users:
+      - username: node-direct
+        password: direct-pass
+      - username: node-reject
+        password: reject-pass
+
+rules:
+  - IN-USER,node-direct,DIRECT
+  - IN-USER,node-reject,REJECT
+  - MATCH,REJECT

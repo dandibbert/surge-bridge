@@ -15,6 +15,7 @@ type SocksOption struct {
 	BaseOption
 	Users          AuthUsers     `inbound:"users,omitempty"`
 	UDP            bool          `inbound:"udp,omitempty"`
+	BridgeUDPSessions bool `inbound:"bridge-udp-sessions,omitempty"`
 	Certificate    string        `inbound:"certificate,omitempty"`
 	PrivateKey     string        `inbound:"private-key,omitempty"`
 	ClientAuthType string        `inbound:"client-auth-type,omitempty"`
@@ -36,6 +37,9 @@ type Socks struct {
 }
 
 func NewSocks(options *SocksOption) (*Socks, error) {
+	if options.BridgeUDPSessions && len(options.Users) == 0 {
+		return nil, errors.New("bridge-udp-sessions requires explicit SOCKS5 users")
+	}
 	base, err := NewBase(&options.BaseOption)
 	if err != nil {
 		return nil, err
@@ -88,6 +92,7 @@ func (s *Socks) Listen(tunnel C.Tunnel) error {
 	for _, addr := range strings.Split(s.RawAddress(), ",") {
 		config := LC.AuthServer{
 			Enable:         true,
+			BridgeUDPSessions: s.config.BridgeUDPSessions,
 			Listen:         addr,
 			AuthStore:      s.config.Users.GetAuthStore(),
 			Certificate:    s.config.Certificate,
@@ -102,7 +107,7 @@ func (s *Socks) Listen(tunnel C.Tunnel) error {
 			return err
 		}
 		s.stl = append(s.stl, stl)
-		if s.udp {
+		if s.udp && !s.config.BridgeUDPSessions {
 			sul, err := socks.NewUDPWithConfig(config, lc, tunnel, s.Additions()...)
 			if err != nil {
 				return err

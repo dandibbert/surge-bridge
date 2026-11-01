@@ -1,0 +1,69 @@
+name: Surge Bridge MVP
+
+# Keep only the latest build for a fast-moving feature branch.
+concurrency:
+  group: surge-bridge-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - feat/surge-bridge-mvp
+    paths:
+      - 'hub/route/surge_bridge*'
+      - 'hub/route/server.go'
+      - 'hub/route/proxies.go'
+      - 'listener/**'
+      - 'transport/socks5/**'
+      - 'scripts/sub-store/**'
+      - 'internal/surgebridge/**'
+      - 'bridge_lifecycle.go'
+      - 'bridge_external*.go'
+      - 'scripts/install-launchd.sh'
+      - 'scripts/tests/**'
+      - '.github/workflows/surge-bridge.yml'
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: LaunchAgent installer syntax and sandbox smoke test
+        run: sh -n scripts/install-launchd.sh && sh scripts/tests/install-launchd.test.sh
+      - name: Sub-Store single-port script tests
+        run: node --test scripts/sub-store/single-port-surgemac.test.cjs
+      - name: Diagnostic endpoint tests
+        run: go test ./hub/route -run '^TestBridge' -count=1
+      - name: External launcher / daemon coexistence tests
+        run: go test . -run '^TestBridge' -count=1
+      - name: Read-only subscription watcher tests
+        run: go test ./internal/surgebridge -count=1
+      - name: Isolated SOCKS5 transport tests
+        run: go test ./listener/socks ./listener/inbound ./transport/socks5 -count=1
+      - name: Build Linux e2e test binary
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/surge-bridge-linux-amd64 .
+      - name: Local TCP + UDP association integration
+        run: node --test scripts/tests/socks-udp-e2e.test.cjs
+      - name: Read-only Sub-Store watcher and offline recovery integration
+        run: node --test scripts/tests/substore-daemon-e2e.test.cjs
+      - name: Build macOS Apple Silicon binary
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/surge-bridge-darwin-arm64 .
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: surge-bridge-macos-arm64
+          path: dist/surge-bridge-darwin-arm64
+          if-no-files-found: error
