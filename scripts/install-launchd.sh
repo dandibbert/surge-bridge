@@ -5,6 +5,11 @@
 set -eu
 umask 077
 
+if [ "$#" -eq 0 ]; then
+  printf "Existing Sub-Store SurgeMac subscription URL: " >&2
+  IFS= read -r SOURCE_URL
+  set -- "$SOURCE_URL"
+fi
 if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
   echo "Usage: $0 '<existing Sub-Store SurgeMac subscription URL>' [binary path] [refresh interval]" >&2
   exit 2
@@ -27,6 +32,8 @@ PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST="$PLIST_DIR/dev.surgebridge.engine.plist"
 LABEL="dev.surgebridge.engine"
 mkdir -p "$DATA_DIR" "$PLIST_DIR"
+ENGINE_DIR="$DATA_DIR/engine"
+mkdir -p "$ENGINE_DIR"
 SOURCE_FILE="$DATA_DIR/substore-url.txt"
 # File, not a process argument: subscription tokens stay out of 'ps' output.
 printf '%s\n' "$SOURCE_URL" > "$SOURCE_FILE"
@@ -36,6 +43,7 @@ xml_escape() {
   printf '%s' "$1" | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"
 }
 E_BIN=$(xml_escape "$BINARY")
+E_ENGINE=$(xml_escape "$ENGINE_DIR")
 E_SOURCE=$(xml_escape "$SOURCE_FILE")
 E_STDOUT=$(xml_escape "$DATA_DIR/stdout.log")
 E_STDERR=$(xml_escape "$DATA_DIR/stderr.log")
@@ -49,10 +57,12 @@ cat > "$PLIST" <<EOF
   <key>ProgramArguments</key>
   <array>
     <string>$E_BIN</string>
+    <string>-d</string><string>$E_ENGINE</string>
     <string>-bridge-source-file</string><string>$E_SOURCE</string>
     <string>-bridge-poll</string><string>$E_INTERVAL</string>
   </array>
   <key>RunAtLoad</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>$E_STDOUT</string>
   <key>StandardErrorPath</key><string>$E_STDERR</string>
