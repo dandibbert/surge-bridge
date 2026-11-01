@@ -13,6 +13,7 @@ on:
       - 'scripts/sub-store/**'
       - 'internal/surgebridge/**'
       - 'bridge_lifecycle.go'
+      - 'bridge_external*.go'
       - 'scripts/install-launchd.sh'
       - 'scripts/tests/**'
       - '.github/workflows/surge-bridge.yml'
@@ -37,6 +38,8 @@ jobs:
         run: node --test scripts/sub-store/single-port-surgemac.test.cjs
       - name: Diagnostic endpoint tests
         run: go test ./hub/route -run '^TestBridge' -count=1
+      - name: External launcher / daemon coexistence tests
+        run: go test . -run '^TestBridge' -count=1
       - name: Read-only subscription watcher tests
         run: go test ./internal/surgebridge -count=1
       - name: Isolated SOCKS5 transport tests
