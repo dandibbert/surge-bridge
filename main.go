@@ -85,22 +85,28 @@ func main() {
 	// Parse in main rather than init so Go's testing package can register
 	// -test.* flags when this executable is tested as package main.
 	flag.Parse()
-	// Defensive programming: panic when code mistakenly calls net.DefaultResolver
-	net.DefaultResolver.PreferGo = true
-	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-		//panic("should never be called")
-		buf := make([]byte, 1024)
-		for {
-			n := runtime.Stack(buf, true)
-			if n < len(buf) {
-				buf = buf[:n]
-				break
+	// A standalone subscription watcher must resolve the Sub-Store hostname
+	// BEFORE Mihomo DNS is initialized. Preserve the upstream resolver guard
+	// for normal -config/-f mode, but allow system DNS for the read-only watcher.
+	if !bridgeWatchEnabled() {
+		// Defensive programming: panic when code mistakenly calls net.DefaultResolver
+		net.DefaultResolver.PreferGo = true
+		net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+			//panic("should never be called")
+			buf := make([]byte, 1024)
+			for {
+				n := runtime.Stack(buf, true)
+				if n < len(buf) {
+					buf = buf[:n]
+					break
+				}
+				buf = make([]byte, 2*len(buf))
 			}
-			buf = make([]byte, 2*len(buf))
+			fmt.Fprintf(os.Stderr, "panic: should never be called\n\n%s", buf) // always print all goroutine stack
+			os.Exit(2)
+			return nil, nil
 		}
-		fmt.Fprintf(os.Stderr, "panic: should never be called\n\n%s", buf) // always print all goroutine stack
-		os.Exit(2)
-		return nil, nil
+	
 	}
 
 	_, _ = maxprocs.Set(maxprocs.Logger(func(string, ...any) {}))
