@@ -10,6 +10,7 @@ on:
       - 'hub/route/proxies.go'
       - 'listener/**'
       - 'transport/socks5/**'
+      - 'scripts/sub-store/**'
       - '.github/workflows/surge-bridge.yml'
       - 'main.go'
       - 'go.mod'
@@ -26,6 +27,8 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+      - name: Sub-Store single-port script tests
+        run: node --test scripts/sub-store/single-port-surgemac.test.cjs
       - name: Diagnostic endpoint tests
         run: go test ./hub/route -run '^TestBridge' -count=1
       - name: Isolated SOCKS5 transport tests
