@@ -204,6 +204,13 @@ func main() {
 		return
 	}
 
+	// A Surge External launcher must not bind the SOCKS and controller ports
+	// a second time when the independent launchd-managed core is healthy.
+	if configString != "" && !bridgeWatchEnabled() && bridgeHasRunningDaemon(configBytes) {
+		bridgeWaitForDaemonTermination()
+		return
+	}
+
 	var options []hub.Option
 	if externalUI != "" {
 		options = append(options, hub.WithExternalUI(externalUI))
