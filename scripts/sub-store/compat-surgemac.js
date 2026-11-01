@@ -15,6 +15,10 @@ function operator(proxies, targetPlatform) {
   for (const proxy of proxies) {
     if (!proxy || typeof proxy !== "object") continue;
 
+    // A single combined SurgeMac output receives one continuous, automatic
+    // port allocation; do not carry per-source starting ports into the merge.
+    delete proxy._localPort;
+
     proxy._exec = EXEC;
     proxy._merge = true;
     proxy._mergeName = "surge-bridge engine";
