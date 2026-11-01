@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/metacubex/mihomo/common/cmd"
 	"github.com/metacubex/mihomo/component/age"
@@ -61,6 +62,10 @@ func init() {
 	flag.StringVar(&homeDir, "d", os.Getenv("CLASH_HOME_DIR"), "set configuration directory")
 	flag.StringVar(&configFile, "f", os.Getenv("CLASH_CONFIG_FILE"), "specify configuration file")
 	flag.StringVar(&configString, "config", os.Getenv("CLASH_CONFIG_STRING"), "specify base64-encoded configuration string")
+	flag.StringVar(&bridgeSourceURL, "bridge-source", "", "watch an existing Sub-Store SurgeMac subscription URL (read-only)")
+	flag.StringVar(&bridgeSourceFile, "bridge-source-file", "", "read the Sub-Store URL from a private local file")
+	flag.StringVar(&bridgeCacheFile, "bridge-cache", "", "last-known-good configuration file path")
+	flag.DurationVar(&bridgePoll, "bridge-poll", bridgePoll, "subscription refresh interval, minimum 30s")
 	flag.StringVar(&ageSecretKey, "age-secret-key", os.Getenv("CLASH_AGE_SECRET_KEY"), "specify age secret key to decrypt configuration")
 	flag.StringVar(&externalUI, "ext-ui", os.Getenv("CLASH_OVERRIDE_EXTERNAL_UI_DIR"), "override external ui directory")
 	flag.StringVar(&externalController, "ext-ctl", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER"), "override external controller address")
@@ -142,7 +147,16 @@ func main() {
 		age.SetGlobalSecretKeys(ageSecretKey)
 	}
 
-	if configString != "" {
+	if bridgeWatchEnabled() {
+		if configString != "" || configFile != "" {
+			log.Fatalln("Bridge subscription watch cannot be combined with -config or -f")
+		}
+		var err error
+		configBytes, err = bridgeLoadInitial()
+		if err != nil {
+			log.Fatalln("Bridge initial subscription error: %s", err)
+		}
+	} else if configString != "" {
 		var err error
 		configBytes, err = base64.StdEncoding.DecodeString(configString)
 		if err != nil {
@@ -216,6 +230,9 @@ func main() {
 	if err := hub.Parse(configBytes, options...); err != nil {
 		log.Fatalln("Parse config error: %s", err.Error())
 	}
+	if bridgeWatchEnabled() {
+		bridgeSaveLastGood(configBytes)
+	}
 
 	if updater.GeoAutoUpdate() {
 		updater.RegisterGeoUpdater()
@@ -240,12 +257,25 @@ func main() {
 	hupSign := make(chan os.Signal, 1)
 	signal.Notify(termSign, syscall.SIGINT, syscall.SIGTERM)
 	signal.Notify(hupSign, syscall.SIGHUP)
+	var refresh <-chan time.Time
+	if bridgeWatchEnabled() {
+		if bridgePoll < 30*time.Second {
+			log.Fatalln("-bridge-poll must be at least 30s")
+		}
+		ticker := time.NewTicker(bridgePoll)
+		defer ticker.Stop()
+		refresh = ticker.C
+	}
 	for {
 		select {
+		case <-refresh:
+			configBytes = bridgeRefreshIfChanged(configBytes, options)
 		case <-termSign:
 			return
 		case <-hupSign:
-			if err := hub.Parse(configBytes, options...); err != nil {
+			if bridgeWatchEnabled() {
+				configBytes = bridgeRefreshIfChanged(configBytes, options)
+			} else if err := hub.Parse(configBytes, options...); err != nil {
 				log.Errorln("Parse config error: %s", err.Error())
 			}
 		}
