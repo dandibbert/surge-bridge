@@ -7,6 +7,7 @@ on:
     paths:
       - 'hub/route/surge_bridge*'
       - 'hub/route/server.go'
+      - 'hub/route/proxies.go'
       - '.github/workflows/surge-bridge.yml'
       - 'main.go'
       - 'go.mod'
