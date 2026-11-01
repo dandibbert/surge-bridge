@@ -11,6 +11,8 @@ on:
       - 'listener/**'
       - 'transport/socks5/**'
       - 'scripts/sub-store/**'
+      - 'internal/surgebridge/**'
+      - 'bridge_lifecycle.go'
       - '.github/workflows/surge-bridge.yml'
       - 'main.go'
       - 'go.mod'
@@ -31,6 +33,8 @@ jobs:
         run: node --test scripts/sub-store/single-port-surgemac.test.cjs
       - name: Diagnostic endpoint tests
         run: go test ./hub/route -run '^TestBridge' -count=1
+      - name: Read-only subscription watcher tests
+        run: go test ./internal/surgebridge -count=1
       - name: Isolated SOCKS5 transport tests
         run: go test ./listener/socks ./listener/inbound ./transport/socks5 -count=1
       - name: Build macOS Apple Silicon binary
