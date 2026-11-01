@@ -12,7 +12,7 @@
 
 ## 当前未实现 / 不应被误认为已经解决
 
-- **单端口 UDP 身份路由未完成。** 原始 Mihomo SOCKS5 TCP 协议会保存认证用户名，但单端口收到的 UDP 包不带该用户身份；直接采用 `IN-USER` 可能造成 UDP 串线。目前的 Sub-Store 适配脚本仍使用原来的独立 Listener 端口，**不能称为已经摆脱 localPort**。
+- **单端口 UDP 会话隔离已实现首轮代码，但尚未完成 Surge 实机验证。** 通过可选的 `bridge-udp-sessions: true`，已认证 TCP 控制会话会获得单独的临时 UDP 中继端口；关闭控制会话会释放端口。不会开放绕过认证的共用 UDP Listener。**Sub-Store 适配脚本仍保留旧多 Listener 模式**，暂不作为生产默认行为，也不能宣称已经彻底解决 localPort。
 - 单进程在 Surge 未使用 External 策略时的可靠常驻、`launchd` 自恢复与订阅热更新尚未实现。
 - 错误分类为**基于错误类型/文本的最佳努力推测**，不是对 DNS/TCP/TLS/REALITY 各阶段做过完整埋点。不能把猜测显示成已确认成功/失败的握手阶段。
 - 还没有 SwiftUI 菜单栏 UI，也没有与 Surge 的外部策略单测 API 集成。
@@ -54,7 +54,7 @@ curl -fsS -H "Authorization: Bearer $TOKEN" "$API/surge-bridge/status"
 
 ### TCP 单端口技术试验（独立于生产 Sub-Store）
 
-参见 [single-port-tcp-only.yaml](../examples/single-port-tcp-only.yaml)。这是单端口身份分流的**技术验证**，禁用 UDP，不属于已经可投入使用的整合方案。
+参见 [single-port-tcp-only.yaml](../examples/single-port-tcp-only.yaml)。此示例现在启用**实验性的会话隔离 UDP**，由同一个 SOCKS5 TCP 端口按用户名分流，UDP ASSOCIATE 每会话分配一个独立的临时 UDP 端口。须验证 Surge 客户端是否遵循服务器返回的 BND.ADDR/BND.PORT，以及 UDP 包的生命周期、并发与来源端口兼容性，尚不可投入生产。
 
 ## 开发约束
 
