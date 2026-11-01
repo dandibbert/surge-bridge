@@ -1,5 +1,10 @@
 name: Surge Bridge MVP
 
+# Keep only the latest build for a fast-moving feature branch.
+concurrency:
+  group: surge-bridge-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
